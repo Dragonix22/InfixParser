@@ -7,7 +7,7 @@ int main(){
     std::string expr;
     std::cin >> expr;
 
-    std::stack<char> operatorStack;//only should have operators and left parenthesis
+    std::stack<char> operator_stack;//only should have operators and left parenthesis
     std::string postfix="";
     //stores all operators with value equal to level of precedence(eg - and + have precedence 1, * and / have precedence 2, etc)
     std::unordered_map<char,int> operators={
@@ -22,36 +22,39 @@ int main(){
             //std::cout<<i<<" digit parsed \n";
         }
         else if(c=='('){
-            operatorStack.push(c);
+            operator_stack.push(c);
         }
         else if(c==')'){
-            while(operatorStack.top()!='('){
-                postfix+=operatorStack.top();
-                operatorStack.pop();
+            while(operator_stack.top()!='('){
+                postfix+=operator_stack.top();
+                operator_stack.pop();
             }
-            if(operatorStack.empty()){
+            if(operator_stack.empty()){
                 throw std::runtime_error("Mismatched parentheses");
             }
-            operatorStack.pop();
+            operator_stack.pop();
         }
         else if(operators[c]>=1){
             //if its + or - all operators of stack are popped, if * or / only pop those ones            
-            while(!operatorStack.empty()&&c!='('&&operators[operatorStack.top()]>=operators[c]){
-                char top = operatorStack.top();
+            while(!operator_stack.empty()&&c!='('&&operators[operator_stack.top()]>=operators[c]){
+                char top = operator_stack.top();
                 postfix+=top;                        
-                operatorStack.pop();
+                operator_stack.pop();
             }
-            operatorStack.push(c);
+            operator_stack.push(c);
             //std::cout<<i<<" operator parsed \n";
         }
         else{
             throw std::runtime_error("Invalid character");
         }
     } 
-    while(!operatorStack.empty()){
-        postfix+=operatorStack.top();
-        operatorStack.pop();
+    while(!operator_stack.empty()){
+        postfix+=operator_stack.top();
+        operator_stack.pop();
     }
-    std::cout<<postfix<<std::endl;
+    std::cout<<"Postfix: "<< postfix << std::endl;
+    //postfix evaluation
+    
+
     return(0);
 }
