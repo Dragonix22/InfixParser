@@ -2,13 +2,14 @@
 #include <stack>
 #include <string>
 #include <unordered_map>
-
+#include <vector>
 //Tokens
 enum class TokenType{
     Number,
     Operator,
     LeftParen,
-    RightParen
+    RightParen,
+    UnaryMinus
 };
 struct Token {
     TokenType type;
@@ -21,12 +22,31 @@ bool isOperatorChar(char c){
 }
 
 
+int precedence(char op){
+    switch(op){
+        
+        //equivalent so bleeding between cases is not a problem(omission of break)
+        case '~': return 3;//unary minus
+        case '+':
+        case '-': return 1;
+
+        case '*':
+        case '/': return 2;
+
+        default: return 0;
+    }
+}
+
+
+
 std::vector<Token> tokenize(const std::string& expr){
     std::vector<Token> tokens;
+    bool hasLast=false;
+    TokenType lastType;
     for(size_t i=0;i<expr.size();i++){
         char c=expr[i];
         if(isspace((unsigned char)c)) continue;
-        //multi digit detection
+        //multi digit/decimal detection
         if(isdigit((unsigned char)c)){
             std::string num;
             int dots=0;
@@ -38,16 +58,31 @@ std::vector<Token> tokenize(const std::string& expr){
             }
             i--;//corrects loop overshoot
             tokens.push_back({TokenType::Number,std::stod(num),'\0'});
+            lastType=TokenType::Number;
+            hasLast=true;
         }
         //operators
         else if(isOperatorChar(c)){
-            tokens.push_back({TokenType::Operator,0,c});
+            bool isUnaryMinus=(c=='-')&&(!hasLast||lastType==TokenType::Operator||lastType==TokenType::LeftParen);
+            if(isUnaryMinus){
+                tokens.push_back({TokenType::UnaryMinus,0,'~'});
+                lastType=TokenType::UnaryMinus;
+            }
+            else{
+                tokens.push_back({TokenType::Operator,0,c});
+                lastType=TokenType::Operator;
+            }
+            hasLast=true;
         }
         else if(c=='('){
             tokens.push_back({TokenType::LeftParen,0,'\0'});
+            lastType=TokenType::LeftParen;
+            hasLast=true;
         }
         else if(c==')'){
             tokens.push_back({TokenType::RightParen,0,'\0'});
+            lastType=TokenType::RightParen;
+            hasLast=true;
         }
         else {
             throw std::runtime_error("Invalid character");
@@ -55,19 +90,6 @@ std::vector<Token> tokenize(const std::string& expr){
     }
 
     return tokens;
-}
-
-int precedence(char op){
-    switch(op){
-        //equivalent so bleeding between cases is not a problem(omission of break)
-        case '+':
-        case '-': return 1;
-
-        case '*':
-        case '/': return 2;
-
-        default: return 0;
-    }
 }
 
 
@@ -93,8 +115,11 @@ std::vector<Token> infixToPostfix(std::vector<Token> tokens){
             }
             operator_stack.pop();
         }
-        else if(t.type==TokenType::Operator){
-            while(!operator_stack.empty()&&operator_stack.top().type!=TokenType::LeftParen&&(precedence(operator_stack.top().op)>=precedence(t.op))){
+        else if(t.type==TokenType::Operator||t.type==TokenType::UnaryMinus){
+            bool isUnary=(t.type==TokenType::UnaryMinus);
+
+            while(!operator_stack.empty()&&operator_stack.top().type!=TokenType::LeftParen
+            &&(precedence(operator_stack.top().op)>=precedence(t.op))){
                 postfixTokens.push_back(operator_stack.top());
                 operator_stack.pop();
             }
@@ -132,7 +157,14 @@ double evaluatePostfix(std::vector<Token> postfixTokens){
         if(t.type==TokenType::Number){
             values.push(t.value);
         }
-        if(t.type==TokenType::Operator){
+        else if(t.type==TokenType::UnaryMinus){
+            if(values.empty())
+                throw std::runtime_error("Invalid Unary Minus");
+            double v = values.top();
+            values.pop();
+            values.push(-v);
+        }
+        else if(t.type==TokenType::Operator){
             if(values.size()<2){
                 throw std::runtime_error("Invalid Expression");
             }
@@ -162,10 +194,13 @@ void printTokenVector(std::vector<Token> tokens){
             std::cout<<"NUMBER("<<t.value<<")";
             break;
         case TokenType::LeftParen:
-            std::cout<<"LeftParen()";
+            std::cout<<"L_PAREN()";
             break;
         case TokenType::RightParen:
-            std::cout<<"RightParen()";
+            std::cout<<"R_PAREN()";
+            break;
+        case TokenType::UnaryMinus:
+            std::cout<<"U_MINUS()";
             break;
         default:
             throw std::runtime_error("Invalid token");
@@ -179,17 +214,21 @@ void printTokenVector(std::vector<Token> tokens){
 }
 
 int main(){
-    std::cout << "Enter a math expression: ";
-    std::string expr;
-    std::getline(std::cin,expr);
-    
-    std::vector<Token> tokens = tokenize(expr);
-    printTokenVector(tokens);
-    std::cout<<std::endl;
-    std::vector<Token> postfixTokens = infixToPostfix(tokens);
-    printTokenVector(postfixTokens);
-    std::cout<<std::endl;
-    double result = evaluatePostfix(postfixTokens);
-    std::cout<<"Result: "<<result;
+    while(true){
+        std::cout << "Enter a math expression or q to quit: ";
+        std::string expr;
+        std::getline(std::cin,expr);
+        if(expr=="q"){
+            break;
+        }
+        std::vector<Token> tokens = tokenize(expr);
+        printTokenVector(tokens);
+        std::cout<<std::endl;
+        std::vector<Token> postfixTokens = infixToPostfix(tokens);
+        printTokenVector(postfixTokens);
+        std::cout<<std::endl;
+        double result = evaluatePostfix(postfixTokens);
+        std::cout<<"Result: "<<result<<std::endl;
+    }
     return(0);
 }
