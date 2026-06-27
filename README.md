@@ -3,4 +3,5 @@ This parses regular math expressions(in infix form) into postfix form using the 
 # TODO  
 - [ ] Better error-handling  
 - [ ] More operations  
-- [ ] Unit tests  
+- [ ] Unit tests
+- [ ] Support Algebraic Expressions (i.e. a+b/c)
