@@ -3,66 +3,116 @@
 #include <string>
 #include <unordered_map>
 
-//stores all operators with value equal to level of precedence(eg - and + have precedence 1, * and / have precedence 2, etc)
-const std::unordered_map<char,int> precedence={
-    {'+',1},{'-',1},{'*',2},{'/',2}
+//Tokens
+enum class TokenType{
+    Number,
+    Operator,
+    LeftParen,
+    RightParen
+};
+struct Token {
+    TokenType type;
+    double value;
+    char op;
 };
 
-bool isDigit(char c){
-    return (c>='0'&&c<='9');
+bool isOperatorChar(char c){
+    return (c=='+'||c=='-'||c=='*'||c=='/');
 }
 
-bool isOperator(char c){
-    return precedence.count(c);
-}
 
-std::string infixToPostfix(const std::string& expr){
-    std::stack<char> operator_stack;//only should have operators and left parenthesis
-    std::string postfix="";    
-    //Shunting Yard Algorithm(infix to postfix conversion)
-    for(int i=0;i<expr.size();i++){
-        char c =expr[i];
-        if(isDigit(c)){
-            //single digits only for now
-            postfix+=c;
+std::vector<Token> tokenize(const std::string& expr){
+    std::vector<Token> tokens;
+    for(size_t i=0;i<expr.size();i++){
+        char c=expr[i];
+        if(isspace((unsigned char)c)) continue;
+        //multi digit detection
+        if(isdigit((unsigned char)c)){
+            std::string num;
+            int dots=0;
+            while(i<expr.size()&&(isdigit(expr[i])||expr[i]=='.')){
+                if(expr[i]=='.')dots++;
+                if(dots>1) throw std::runtime_error("Invalid number");
+                num+=expr[i];
+                i++;
+            }
+            i--;//corrects loop overshoot
+            tokens.push_back({TokenType::Number,std::stod(num),'\0'});
+        }
+        //operators
+        else if(isOperatorChar(c)){
+            tokens.push_back({TokenType::Operator,0,c});
         }
         else if(c=='('){
-            operator_stack.push(c);
+            tokens.push_back({TokenType::LeftParen,0,'\0'});
         }
         else if(c==')'){
-            while(!operator_stack.empty()&&operator_stack.top()!='('){
-                postfix+=operator_stack.top();
+            tokens.push_back({TokenType::RightParen,0,'\0'});
+        }
+        else {
+            throw std::runtime_error("Invalid character");
+        }
+    }
+
+    return tokens;
+}
+
+int precedence(char op){
+    switch(op){
+        //equivalent so bleeding between cases is not a problem(omission of break)
+        case '+':
+        case '-': return 1;
+
+        case '*':
+        case '/': return 2;
+
+        default: return 0;
+    }
+}
+
+
+std::vector<Token> infixToPostfix(std::vector<Token> tokens){
+    std::stack<Token> operator_stack;//only should have operators and left parenthesis
+    std::vector<Token> postfixTokens;
+    
+    //Shunting Yard Algorithm(infix to postfix conversion)
+    for(Token t:tokens){
+        if(t.type==TokenType::Number){
+            postfixTokens.push_back(t);
+        }   
+        else if(t.type==TokenType::LeftParen){
+            operator_stack.push(t);
+        }
+        else if(t.type==TokenType::RightParen){
+            while(!operator_stack.empty()&&operator_stack.top().type!=TokenType::LeftParen){
+                postfixTokens.push_back(operator_stack.top());
                 operator_stack.pop();
             }
             if(operator_stack.empty()){
-                throw std::runtime_error("Mismatched parentheses");
+                throw std::runtime_error("Mismatched Parenthesis");
             }
             operator_stack.pop();
         }
-        else if(isOperator(c)){
-            //if its + or - all operators of stack are popped, if * or / only pop those ones            
-            while(!operator_stack.empty()&&operator_stack.top()!='('&&precedence.at(operator_stack.top())>=precedence.at(c)){
-                char top = operator_stack.top();
-                postfix+=top;                        
+        else if(t.type==TokenType::Operator){
+            while(!operator_stack.empty()&&operator_stack.top().type!=TokenType::LeftParen&&(precedence(operator_stack.top().op)>=precedence(t.op))){
+                postfixTokens.push_back(operator_stack.top());
                 operator_stack.pop();
             }
-            operator_stack.push(c);
+            operator_stack.push(t);
         }
-        else{
-            throw std::runtime_error("Invalid character");
-        }
-    } 
+    }
+
     while(!operator_stack.empty()){
-        if(operator_stack.top()=='('){
-            throw std::runtime_error("Mismatched parentheses");
+        if(operator_stack.top().type==TokenType::LeftParen){
+            throw std::runtime_error("Mistmatched Parenthesis");
         }
-        postfix+=operator_stack.top();
+        postfixTokens.push_back(operator_stack.top());
         operator_stack.pop();
     }
-    return postfix;
+    return postfixTokens;
 }
 
-int applyOperator(int lhs, int rhs, char op)
+double applyOperator(double lhs, double rhs, char op)
 {
     switch(op)
     {
@@ -75,42 +125,71 @@ int applyOperator(int lhs, int rhs, char op)
     }
 }
 
-int evaluatePostfix(const std::string& postfix){
-    std::stack<int> values;
-    for(size_t i=0;i<postfix.size();i++){
-        char c = postfix[i];
-        if(isDigit(c)){
-            values.push(c-'0');
+double evaluatePostfix(std::vector<Token> postfixTokens){
+    std::stack<double> values;
+
+    for(const Token& t:postfixTokens){
+        if(t.type==TokenType::Number){
+            values.push(t.value);
         }
-        else{
+        if(t.type==TokenType::Operator){
             if(values.size()<2){
-                throw std::runtime_error("Incorrect Postfix Expression");
+                throw std::runtime_error("Invalid Expression");
             }
-            int rhs=values.top();
+            double rhs=values.top();
             values.pop();
-            int lhs = values.top();
+            double lhs=values.top();
             values.pop();
-            
-            values.push(applyOperator(lhs,rhs,c));
-            
+            double result = applyOperator(lhs,rhs,t.op);
+            values.push(result);
         }
     }
-    if (values.size() != 1) {
+    if(values.size()!=1)
         throw std::runtime_error("Invalid postfix expression");
-    }
     return values.top();
+}
+
+void printTokenVector(std::vector<Token> tokens){
+    std::cout<<"{";
+    for(size_t i=0;i<tokens.size();i++){
+        Token t = tokens[i];
+        switch (t.type)
+        {
+        case TokenType::Operator:
+            std::cout<<"OPERATOR("<<t.op<<")";
+            break;
+        case TokenType::Number:
+            std::cout<<"NUMBER("<<t.value<<")";
+            break;
+        case TokenType::LeftParen:
+            std::cout<<"LeftParen()";
+            break;
+        case TokenType::RightParen:
+            std::cout<<"RightParen()";
+            break;
+        default:
+            throw std::runtime_error("Invalid token");
+            break;
+        }
+        if(i<tokens.size()-1){
+            std::cout<<", ";
+        }
+    }
+    std::cout<<"}";
 }
 
 int main(){
     std::cout << "Enter a math expression: ";
     std::string expr;
-    std::cin >> expr;
+    std::getline(std::cin,expr);
     
-    std::string postfix=infixToPostfix(expr);   
-    std::cout<<"Postfix: "<< postfix << std::endl;
-
-    int answer = evaluatePostfix(postfix);
-    std::cout<<"Answer: "<<answer<<std::endl;
-
+    std::vector<Token> tokens = tokenize(expr);
+    printTokenVector(tokens);
+    std::cout<<std::endl;
+    std::vector<Token> postfixTokens = infixToPostfix(tokens);
+    printTokenVector(postfixTokens);
+    std::cout<<std::endl;
+    double result = evaluatePostfix(postfixTokens);
+    std::cout<<"Result: "<<result;
     return(0);
 }
